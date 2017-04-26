@@ -24,59 +24,26 @@ public class Spawner : MonoBehaviour {
     private int lastProb = 0;
     private List<Waypoint> spawns = new List<Waypoint>();
     private float temp;
-    private int newProb;
+    private float newProb;
     private int spawnProb;
-    private bool initSpawn = false;
+    private bool initSpawn = true;
     private float bias = 0.4f;
-    private string FPCTag;
+    private float range = 1.8f;
+    private int model = 0;
 
     void Start()
     {
-        if(FPC != null)
-        {
-            FPCTag = FPC.tag;
-        }
         newProb = 0;
-        Time.timeScale = 2;
-        if (stressTest)
-        {
-            StressTest();
-        } else
-        {
-            Initialize();
-        }
+       // Time.timeScale = 2;
     }
 
-    private void Initialize()
-    {
-        StartCoroutine(InitSpawn(.5f));
-    }
 
-    void Update()
+    void FixedUpdate()
     {
-        if(stressTest || (!destroyOnContact && initSpawn && projectedActivity > actorsInPlay))
+        if (stressTest || (!destroyOnContact && projectedActivity > actorsInPlay))
         {
             Spawn();
             return;
-        }
-    }
-
-    IEnumerator InitSpawn(float waitTime)
-    {
-        //bool temp = torusOfLife;
-        //torusOfLife = false;
-        if (waitTime > 0)
-        {
-            while(projectedActivity > actorsInPlay)
-            {
-                Spawn();
-                yield return new WaitForSeconds(waitTime);
-            }
-        }
-        //torusOfLife = temp;
-        if (projectedActivity <= actorsInPlay)
-        {
-            initSpawn = true;
         }
     }
 
@@ -93,11 +60,6 @@ public class Spawner : MonoBehaviour {
         return false;
     }
 
-    private void StressTest()
-    {
-        float spawnTime = 1.0f/bias;
-        InvokeRepeating("Spawn", spawnTime, spawnTime);
-    }
 
     private List<Waypoint> WaypointsInRange()
     {
@@ -133,7 +95,7 @@ public class Spawner : MonoBehaviour {
             }
         }
         newProb = totalProb - spawnProb;
-        temp = UnityEngine.Random.Range(0, totalProb);
+        temp = UnityEngine.Random.Range(0, newProb);
         for (int j = 0; j < spawns.Count; j++)
         {
             if (spawns[j].GetInstanceID() != lastSpawn)
@@ -157,6 +119,7 @@ public class Spawner : MonoBehaviour {
         {
             return;
         }
+        newProb = 0;
         for (int i = 0; i < inRange.Count; i++)
         {
             newProb += inRange[i].spawnProb;
@@ -164,47 +127,48 @@ public class Spawner : MonoBehaviour {
         temp = UnityEngine.Random.Range(0, newProb);
         for (int j = 0; j < inRange.Count; j++)
         {
-            //if (waypoints[j].GetInstanceID() != lastSpawn)
-            //{
-                newProb -= inRange[j].spawnProb;
-                if (newProb < 0 && FPCNotInView(inRange[j].transform.position))
+                temp -= inRange[j].spawnProb;
+                if (temp <= 0 && FPCNotInView(inRange[j].transform.position))
                 {
                     lastSpawn = inRange[j].GetInstanceID();
-                    lastProb = inRange[j].spawnProb;
-                    Instantiate(actorPrefabs[(j % actorPrefabs.Length)], inRange[j].transform.position, inRange[j].transform.rotation).GetComponent<NavMeshAgent>().speed = bias + UnityEngine.Random.Range(0, 0.5f * bias);
+                    GameObject newActor = Instantiate(actorPrefabs[(model % actorPrefabs.Length)], inRange[j].transform.position, inRange[j].transform.rotation);
+                    float rand = UnityEngine.Random.Range(0, range);
+                    newActor.GetComponent<NavMeshAgent>().speed = bias + rand*bias*rand;
+                    newActor.GetComponent<Animator>().speed = 1+rand*rand;    
                     actorsInPlay++;
+                    model++;
+                    model = model % actorPrefabs.Length;
                     break;
                 }
-            //}
         }
 
     }
 
     private bool FPCNotInView(Vector3 pos)
     {
-        RaycastHit hit;
-        Vector3 dir = pos - FPC.transform.position;
+        RaycastHit hit = new RaycastHit();
+        Vector3 dir = FPC.transform.position - pos;
         for(int i = 0; i < popinThreshold; i++)
         {
-            if(Physics.Raycast(pos, dir, out hit, dir.magnitude)){
-                if (hit.collider.tag == FPCTag)
+            if(Physics.Raycast(pos, dir, out hit, Vector3.Distance(pos, FPC.transform.position))){
+                if(hit.collider.gameObject.name.Equals(FPC.name))
                 {
                     return false;
                 }
+                Wait(0.1f);
             }
-            Wait(0.1f);
         }
         return true;
     }
 
     private void Spawn()
     {
-        if (!torusOfLife) {
-            SpawnNonTorus();
+        if (torusOfLife) {
+            SpawnTorus(WaypointsInRange());
         }
         else
         {
-            SpawnTorus(WaypointsInRange());
+            SpawnNonTorus();
         }
     }
 
@@ -212,17 +176,6 @@ public class Spawner : MonoBehaviour {
     {
         Destroy(actor);
         actorsInPlay--;
-    }
-
-    private void WaitingForInit(float waitTime)
-    {
-        if(waitTime > 0)
-        {
-            while(!initSpawn)
-            {
-                Wait(waitTime);
-            }
-        }
     }
 
     IEnumerable Wait(float waitTime)

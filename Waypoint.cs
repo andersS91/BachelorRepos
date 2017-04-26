@@ -96,13 +96,11 @@ public class Waypoint : MonoBehaviour
                     {
                         spawner.Despawn(other.gameObject);
                     }
-                    else
+                    else if(spawner.TorusOfLife(other.gameObject))
                     {
-                       if(spawner.TorusOfLife(other.gameObject))
-                        {
-                            return;
-                        }
+                        return;
                     }
+                    
                 }
             }
             RouteCal(other, actor);
